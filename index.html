@@ -288,13 +288,14 @@
 
         // --- Config and Initialization ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-expense-app';
-        let firebaseConfig;
-        try {
-            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        } catch (e) {
-            console.error("Failed to parse Firebase config:", e);
-            showAlert("Error", "Firebase configuration is invalid. The app cannot start.");
-        }
+        const firebaseConfig = {
+  apiKey: "AIzaSyDhAGLPRox2REyydPAhhe4P79iHpKUpyrs",
+  authDomain: "my-trip-expenses-a6e5a.firebaseapp.com",
+  projectId: "my-trip-expenses-a6e5a",
+  storageBucket: "my-trip-expenses-a6e5a.firebasestorage.app",
+  messagingSenderId: "129872677791",
+  appId: "1:129872677791:web:aec2d7eadadf8980028baa"
+};
         
         let app, db, auth;
         let members = [];
@@ -704,4 +705,5 @@
     </script>
 </body>
 </html>
+
 
