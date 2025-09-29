@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Expense Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .card:hover {
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #1d4ed8;
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2563eb;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 500px;
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #6b7280;
+            transition: color 0.2s ease-in-out;
+        }
+        .icon-btn:hover {
+            color: #1f2937;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 lg:p-8">
+    <div id="loading-overlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="loader"></div>
+    </div>
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">Trip Expense Manager</h1>
+            <p class="text-gray-500 mt-2">Manage your group's finances with ease.</p>
+            <div class="mt-4 inline-block">
+                <div class="bg-blue-100 text-blue-800 text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
+                    <span>Group ID: <span id="app-id-display" class="font-bold"></span></span>
+                    <button id="copy-app-id" class="cursor-pointer" title="Copy Group ID">
+                        <i class="far fa-copy"></i>
+                    </button>
+                </div>
+                 <p class="text-xs text-gray-500 mt-1">Share this ID with your friends to collaborate!</p>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Actions -->
+            <div class="lg:col-span-1 space-y-8">
+                <!-- Add Member Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-user-plus mr-3 text-blue-500"></i>Add Member</h2>
+                    <form id="add-member-form" class="space-y-4">
+                        <div>
+                            <label for="memberName" class="block text-sm font-medium text-gray-700 mb-1">Member Name</label>
+                            <input type="text" id="memberName" class="input-field" placeholder="e.g., Vishal Andore" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-full">
+                            <i class="fas fa-plus-circle mr-2"></i>Add Member
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Add Transaction Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-money-bill-wave mr-3 text-green-500"></i>Add Transaction</h2>
+                    <form id="add-transaction-form" class="space-y-4">
+                        <div>
+                            <label for="trans-member" class="block text-sm font-medium text-gray-700 mb-1">Member</label>
+                            <select id="trans-member" class="input-field" required>
+                                <option value="">Select a member</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="trans-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <input type="text" id="trans-description" class="input-field" placeholder="e.g., Groceries, Gas" required>
+                        </div>
+                        <div>
+                            <label for="trans-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                            <input type="number" id="trans-amount" class="input-field" placeholder="0.00" step="0.01" min="0.01" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                            <div class="flex gap-4">
+                               <label class="flex items-center">
+                                  <input type="radio" name="trans-type" value="expense" class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300" checked>
+                                  <span class="ml-2 text-gray-700">Expense</span>
+                                </label>
+                                <label class="flex items-center">
+                                  <input type="radio" name="trans-type" value="contribution" class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300">
+                                  <span class="ml-2 text-gray-700">Contribution</span>
+                                </label>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-full bg-green-600 hover:bg-green-700">
+                            <i class="fas fa-check-circle mr-2"></i>Add Transaction
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Right Column: Information -->
+            <div class="lg:col-span-2 space-y-8">
+                <!-- Summary Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-chart-pie mr-3 text-purple-500"></i>Group Summary</h2>
+                    <div id="summary-content" class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                        <div class="bg-green-100 p-4 rounded-lg">
+                            <p class="text-sm font-medium text-green-800">Total Contributions</p>
+                            <p id="total-contributions" class="text-2xl font-bold text-green-800">₹0.00</p>
+                        </div>
+                        <div class="bg-red-100 p-4 rounded-lg">
+                            <p class="text-sm font-medium text-red-800">Total Expenses</p>
+                            <p id="total-expenses" class="text-2xl font-bold text-red-800">₹0.00</p>
+                        </div>
+                        <div class="bg-blue-100 p-4 rounded-lg">
+                            <p class="text-sm font-medium text-blue-800">Share per Member</p>
+                            <p id="share-per-member" class="text-2xl font-bold text-blue-800">₹0.00</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Balances Card -->
+                 <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-balance-scale mr-3 text-yellow-500"></i>Member Balances</h2>
+                    <div id="balances-list" class="space-y-4">
+                        <p class="text-gray-500 text-center py-4">Add members and transactions to see balances.</p>
+                    </div>
+                </div>
+
+                <!-- Settlements Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-handshake mr-3 text-indigo-500"></i>How to Settle Up</h2>
+                    <div id="settlements-list" class="space-y-2">
+                         <p class="text-gray-500 text-center py-4">Add transactions to calculate settlements.</p>
+                    </div>
+                </div>
+
+                 <!-- Recent Transactions Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-history mr-3 text-gray-500"></i>Recent Transactions</h2>
+                    <div id="transactions-list" class="space-y-3 max-h-80 overflow-y-auto pr-2">
+                        <p class="text-gray-500 text-center py-4">No transactions yet.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Custom Modal for Alerts -->
+    <div id="alert-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-lg font-bold text-gray-800">Notification</h3>
+            <p id="modal-message" class="text-gray-600 mt-2 mb-4">This is a message.</p>
+            <div class="text-right">
+                <button id="modal-close" class="btn btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Transaction Modal -->
+    <div id="edit-transaction-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Edit Transaction</h3>
+            <form id="edit-transaction-form" class="space-y-4">
+                <input type="hidden" id="edit-trans-id">
+                <div>
+                    <label for="edit-trans-member" class="block text-sm font-medium text-gray-700 mb-1">Member</label>
+                    <select id="edit-trans-member" class="input-field" required>
+                        <!-- Options will be populated by JS -->
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-trans-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input type="text" id="edit-trans-description" class="input-field" required>
+                </div>
+                <div>
+                    <label for="edit-trans-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                    <input type="number" id="edit-trans-amount" class="input-field" step="0.01" min="0.01" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                    <div class="flex gap-4">
+                       <label class="flex items-center">
+                          <input type="radio" name="edit-trans-type" value="expense" class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300">
+                          <span class="ml-2 text-gray-700">Expense</span>
+                        </label>
+                        <label class="flex items-center">
+                          <input type="radio" name="edit-trans-type" value="contribution" class="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300">
+                          <span class="ml-2 text-gray-700">Contribution</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-4 mt-6">
+                    <button type="button" id="edit-modal-cancel" class="btn bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, doc, deleteDoc, updateDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Config and Initialization ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-expense-app';
+        let firebaseConfig;
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        } catch (e) {
+            console.error("Failed to parse Firebase config:", e);
+            showAlert("Error", "Firebase configuration is invalid. The app cannot start.");
+        }
+        
+        let app, db, auth;
+        let members = [];
+        let transactions = [];
+        let membersUnsubscribe = () => {};
+        let transactionsUnsubscribe = () => {};
+
+        // --- UI Elements ---
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const memberNameInput = document.getElementById('memberName');
+        const addMemberForm = document.getElementById('add-member-form');
+        const transMemberSelect = document.getElementById('trans-member');
+        const addTransactionForm = document.getElementById('add-transaction-form');
+        const appIdDisplay = document.getElementById('app-id-display');
+        const copyAppIdBtn = document.getElementById('copy-app-id');
+        const balancesListEl = document.getElementById('balances-list');
+        const transactionsListEl = document.getElementById('transactions-list');
+        const editTransactionModal = document.getElementById('edit-transaction-modal');
+        const editTransactionForm = document.getElementById('edit-transaction-form');
+
+        // --- Main App Function ---
+        async function main() {
+            if (!firebaseConfig) {
+                showAlert("Initialization Error", "Firebase is not configured. Please set it up to use the app.");
+                loadingOverlay.style.display = 'none';
+                return;
+            }
+            
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('debug');
+
+            appIdDisplay.textContent = appId;
+            copyAppIdBtn.addEventListener('click', copyToClipboard);
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    console.log("User is signed in with UID:", user.uid);
+                    setupListeners();
+                    loadingOverlay.style.display = 'none';
+                } else {
+                    console.log("User is signed out.");
+                }
+            });
+
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Authentication Error:", error);
+                showAlert("Authentication Failed", "Could not sign in. The app may not function correctly.");
+                loadingOverlay.style.display = 'none';
+            }
+        }
+        
+        // --- Firebase Listeners ---
+        function setupListeners() {
+            const membersCollectionPath = `/artifacts/${appId}/public/data/members`;
+            const transactionsCollectionPath = `/artifacts/${appId}/public/data/transactions`;
+
+            const membersQuery = query(collection(db, membersCollectionPath));
+            membersUnsubscribe = onSnapshot(membersQuery, (snapshot) => {
+                members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Updated members:", members);
+                updateUI();
+            }, (error) => {
+                console.error("Error fetching members:", error);
+                showAlert("Database Error", "Failed to load group members.");
+            });
+
+            const transactionsQuery = query(collection(db, transactionsCollectionPath));
+            transactionsUnsubscribe = onSnapshot(transactionsQuery, (snapshot) => {
+                transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                console.log("Updated transactions:", transactions);
+                updateUI();
+            }, (error) => {
+                console.error("Error fetching transactions:", error);
+                showAlert("Database Error", "Failed to load transactions.");
+            });
+        }
+        
+        // --- UI Update and Rendering ---
+        function updateUI() {
+            renderMemberOptions(document.getElementById('trans-member'));
+            renderMemberOptions(document.getElementById('edit-trans-member'));
+            renderTransactionsList();
+            calculateAndRenderAll();
+        }
+
+        function renderMemberOptions(selectElement) {
+            const currentVal = selectElement.value;
+            selectElement.innerHTML = '<option value="">Select a member</option>';
+            members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = member.name;
+                selectElement.appendChild(option);
+            });
+            selectElement.value = currentVal;
+        }
+
+        function renderTransactionsList() {
+            if (transactions.length === 0) {
+                transactionsListEl.innerHTML = '<p class="text-gray-500 text-center py-4">No transactions yet.</p>';
+                return;
+            }
+
+            const sortedTransactions = [...transactions].sort((a, b) => (b.date?.toDate() || 0) - (a.date?.toDate() || 0));
+
+            transactionsListEl.innerHTML = sortedTransactions.map(trans => {
+                const member = members.find(m => m.id === trans.memberId);
+                const amountClass = trans.type === 'expense' ? 'text-red-600' : 'text-green-600';
+                const sign = trans.type === 'expense' ? '-' : '+';
+                const icon = trans.type === 'expense' ? '<i class="fas fa-arrow-down text-red-500"></i>' : '<i class="fas fa-arrow-up text-green-500"></i>';
+                
+                return `
+                    <div class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50">
+                        <div class="flex items-center">
+                            <span class="mr-3 text-lg">${icon}</span>
+                            <div>
+                                <p class="font-semibold text-gray-800">${trans.description}</p>
+                                <p class="text-sm text-gray-500">Paid by ${member ? member.name : 'Unknown'}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <p class="font-bold ${amountClass}">${sign}₹${parseFloat(trans.amount).toFixed(2)}</p>
+                             <div class="flex gap-2">
+                                <button class="icon-btn edit-trans-btn" data-id="${trans.id}" title="Edit Transaction"><i class="fas fa-pencil-alt"></i></button>
+                                <button class="icon-btn delete-trans-btn" data-id="${trans.id}" title="Delete Transaction"><i class="fas fa-trash-alt"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- Calculation and Rendering Logic ---
+        function calculateAndRenderAll() {
+             if (members.length === 0) {
+                resetSummary();
+                return;
+            }
+
+            const totalContributions = transactions.filter(t => t.type === 'contribution').reduce((sum, t) => sum + parseFloat(t.amount), 0);
+            const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount), 0);
+            const sharePerMember = members.length > 0 ? totalExpenses / members.length : 0;
+            
+            document.getElementById('total-contributions').textContent = `₹${totalContributions.toFixed(2)}`;
+            document.getElementById('total-expenses').textContent = `₹${totalExpenses.toFixed(2)}`;
+            document.getElementById('share-per-member').textContent = `₹${sharePerMember.toFixed(2)}`;
+
+            const memberBalances = members.map(member => {
+                const totalPaid = transactions
+                    .filter(t => t.memberId === member.id)
+                    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+                const balance = totalPaid - sharePerMember;
+                return { ...member, totalPaid, balance };
+            });
+
+            renderBalances(memberBalances);
+            calculateAndRenderSettlements(memberBalances);
+        }
+
+        function resetSummary() {
+            document.getElementById('total-contributions').textContent = '₹0.00';
+            document.getElementById('total-expenses').textContent = '₹0.00';
+            document.getElementById('share-per-member').textContent = '₹0.00';
+            balancesListEl.innerHTML = '<p class="text-gray-500 text-center py-4">Add members and transactions to see balances.</p>';
+            document.getElementById('settlements-list').innerHTML = '<p class="text-gray-500 text-center py-4">Add transactions to calculate settlements.</p>';
+        }
+
+        function renderBalances(memberBalances) {
+            if (memberBalances.length === 0) {
+                balancesListEl.innerHTML = '<p class="text-gray-500 text-center py-4">Add members to see balances.</p>';
+                return;
+            }
+
+            balancesListEl.innerHTML = memberBalances.map(member => {
+                const balanceClass = member.balance >= 0 ? 'text-green-600' : 'text-red-600';
+                const balanceText = member.balance >= 0 ? `Gets back ₹${member.balance.toFixed(2)}` : `Owes ₹${Math.abs(member.balance).toFixed(2)}`;
+                const icon = member.balance >= 0 ? '<i class="fas fa-long-arrow-alt-up text-green-500"></i>' : '<i class="fas fa-long-arrow-alt-down text-red-500"></i>'
+
+                return `
+                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                           <button class="icon-btn delete-member-btn text-red-400 hover:text-red-600" data-id="${member.id}" title="Delete Member"><i class="fas fa-trash-alt"></i></button>
+                           <p class="font-bold text-gray-800">${member.name}</p>
+                        </div>
+                        <div class="text-right">
+                           <p class="font-semibold ${balanceClass}">${icon} ${balanceText}</p>
+                           <p class="text-xs text-gray-500">Paid: ₹${member.totalPaid.toFixed(2)}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function calculateAndRenderSettlements(balances) {
+            const listEl = document.getElementById('settlements-list');
+            const debtors = balances.filter(m => m.balance < 0).map(m => ({ ...m, amount: Math.abs(m.balance) }));
+            const creditors = balances.filter(m => m.balance > 0).map(m => ({ ...m, amount: m.balance }));
+
+            if (debtors.length === 0 && creditors.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-500 text-center py-4">Everyone is settled up!</p>';
+                return;
+            }
+            
+            const settlements = [];
+            let debtorIndex = 0;
+            let creditorIndex = 0;
+
+            while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+                const debtor = debtors[debtorIndex];
+                const creditor = creditors[creditorIndex];
+                const amount = Math.min(debtor.amount, creditor.amount);
+
+                if(amount > 0.005) { // Threshold to avoid tiny floating point settlements
+                    settlements.push({ from: debtor.name, to: creditor.name, amount: amount });
+                }
+                debtor.amount -= amount;
+                creditor.amount -= amount;
+                if (debtor.amount < 0.005) debtorIndex++;
+                if (creditor.amount < 0.005) creditorIndex++;
+            }
+
+            if (settlements.length === 0) {
+                listEl.innerHTML = '<p class="text-gray-500 text-center py-4">Everyone is settled up!</p>';
+                return;
+            }
+
+            listEl.innerHTML = settlements.map(s => `
+                <div class="flex items-center justify-center text-center p-2 bg-indigo-50 rounded-lg">
+                     <i class="fas fa-user-friends text-indigo-500 mr-3"></i>
+                     <p class="text-gray-800">
+                        <span class="font-bold">${s.from}</span> pays <span class="font-bold">${s.to}</span>
+                        <span class="font-bold text-indigo-600">₹${s.amount.toFixed(2)}</span>
+                     </p>
+                </div>
+            `).join('');
+        }
+        
+        // --- Event Handlers ---
+        addMemberForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = memberNameInput.value.trim();
+            if (name) {
+                try {
+                    await addDoc(collection(db, `/artifacts/${appId}/public/data/members`), { name });
+                    memberNameInput.value = '';
+                    showAlert("Success", `${name} was added to the group.`);
+                } catch (error) {
+                    console.error("Error adding member:", error);
+                    showAlert("Error", "Could not add the member to the database.");
+                }
+            }
+        });
+
+        addTransactionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const transDescInput = document.getElementById('trans-description');
+            const transAmountInput = document.getElementById('trans-amount');
+            const memberId = transMemberSelect.value;
+            const description = transDescInput.value.trim();
+            const amount = parseFloat(transAmountInput.value);
+            const type = document.querySelector('input[name="trans-type"]:checked').value;
+
+            if (memberId && description && amount > 0) {
+                try {
+                    await addDoc(collection(db, `/artifacts/${appId}/public/data/transactions`), {
+                        memberId, description, amount, type, date: new Date()
+                    });
+                    addTransactionForm.reset();
+                    showAlert("Success", "Transaction recorded successfully.");
+                } catch (error) {
+                    console.error("Error adding transaction:", error);
+                    showAlert("Error", "Could not add the transaction to the database.");
+                }
+            } else {
+                 showAlert("Invalid Input", "Please fill out all fields correctly.");
+            }
+        });
+
+        balancesListEl.addEventListener('click', async (e) => {
+            const deleteBtn = e.target.closest('.delete-member-btn');
+            if (deleteBtn) {
+                const memberId = deleteBtn.dataset.id;
+                const member = members.find(m => m.id === memberId);
+                const hasTransactions = transactions.some(t => t.memberId === memberId);
+                if(hasTransactions) {
+                    showAlert("Action Denied", `Cannot delete ${member.name}. Please remove their transactions first.`);
+                    return;
+                }
+                
+                try {
+                    await deleteDoc(doc(db, `/artifacts/${appId}/public/data/members`, memberId));
+                    showAlert("Success", `${member.name} has been removed.`);
+                } catch (error) {
+                    console.error("Error deleting member:", error);
+                    showAlert("Error", `Could not remove ${member.name}.`);
+                }
+            }
+        });
+        
+        transactionsListEl.addEventListener('click', async (e) => {
+            const deleteBtn = e.target.closest('.delete-trans-btn');
+            const editBtn = e.target.closest('.edit-trans-btn');
+
+            if (deleteBtn) {
+                const transId = deleteBtn.dataset.id;
+                try {
+                    await deleteDoc(doc(db, `/artifacts/${appId}/public/data/transactions`, transId));
+                    showAlert("Success", "Transaction deleted.");
+                } catch (error) {
+                     console.error("Error deleting transaction:", error);
+                     showAlert("Error", "Could not delete transaction.");
+                }
+            } else if (editBtn) {
+                const transId = editBtn.dataset.id;
+                const transaction = transactions.find(t => t.id === transId);
+                if (transaction) {
+                    openEditTransactionModal(transaction);
+                }
+            }
+        });
+
+        function openEditTransactionModal(transaction) {
+            document.getElementById('edit-trans-id').value = transaction.id;
+            document.getElementById('edit-trans-member').value = transaction.memberId;
+            document.getElementById('edit-trans-description').value = transaction.description;
+            document.getElementById('edit-trans-amount').value = transaction.amount;
+            document.querySelector(`input[name="edit-trans-type"][value="${transaction.type}"]`).checked = true;
+            editTransactionModal.classList.add('visible');
+        }
+
+        editTransactionForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const transId = document.getElementById('edit-trans-id').value;
+            const updatedData = {
+                memberId: document.getElementById('edit-trans-member').value,
+                description: document.getElementById('edit-trans-description').value.trim(),
+                amount: parseFloat(document.getElementById('edit-trans-amount').value),
+                type: document.querySelector('input[name="edit-trans-type"]:checked').value
+            };
+            
+            if (!updatedData.memberId || !updatedData.description || !(updatedData.amount > 0)) {
+                showAlert("Invalid Input", "Please fill all fields correctly.");
+                return;
+            }
+
+            try {
+                const transRef = doc(db, `/artifacts/${appId}/public/data/transactions`, transId);
+                await updateDoc(transRef, updatedData);
+                showAlert("Success", "Transaction updated successfully.");
+                closeEditModal();
+            } catch (error) {
+                console.error("Error updating transaction:", error);
+                showAlert("Error", "Could not update transaction.");
+            }
+        });
+        
+        document.getElementById('edit-modal-cancel').addEventListener('click', closeEditModal);
+        
+        function closeEditModal() {
+            editTransactionModal.classList.remove('visible');
+        }
+
+        // --- Utility Functions ---
+        function copyToClipboard() {
+            const tempInput = document.createElement('textarea');
+            tempInput.style.position = 'absolute';
+            tempInput.style.left = '-9999px';
+            tempInput.value = appId;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showAlert("Copied!", "Group ID copied to clipboard.");
+                } else {
+                     showAlert("Copy Failed", "Could not copy the ID. Please copy it manually.");
+                }
+            } catch (err) {
+                console.error('Failed to copy: ', err);
+                showAlert("Copy Failed", "Could not copy the ID. Please copy it manually.");
+            }
+            document.body.removeChild(tempInput);
+        }
+
+        function showAlert(title, message) {
+            const modal = document.getElementById('alert-modal');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            modal.classList.add('visible');
+        }
+
+        document.getElementById('modal-close').addEventListener('click', () => {
+            document.getElementById('alert-modal').classList.remove('visible');
+        });
+        
+        // --- Start the App ---
+        document.addEventListener('DOMContentLoaded', main);
+
+    </script>
+</body>
+</html>
+
