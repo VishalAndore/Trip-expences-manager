@@ -102,6 +102,9 @@
         .icon-btn:hover {
             color: #1f2937;
         }
+        #connection-status {
+            transition: all 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="p-4 sm:p-6 lg:p-8">
@@ -114,14 +117,15 @@
         <header class="mb-8 text-center">
             <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">Trip Expense Manager</h1>
             <p class="text-gray-500 mt-2">Manage your group's finances with ease.</p>
-            <div class="mt-4 inline-block">
+            <div id="connection-status" class="mt-4 inline-block px-3 py-1 rounded-full text-sm font-semibold"></div>
+            <div class="mt-2 inline-block">
                 <div class="bg-blue-100 text-blue-800 text-sm font-semibold px-4 py-2 rounded-full flex items-center gap-2">
                     <span>Group ID: <span id="app-id-display" class="font-bold"></span></span>
-                    <button id="copy-app-id" class="cursor-pointer" title="Copy Group ID">
+                    <button id="copy-app-id" class="cursor-pointer" title="Copy Group Share Link">
                         <i class="far fa-copy"></i>
                     </button>
                 </div>
-                 <p class="text-xs text-gray-500 mt-1">Share this ID with your friends to collaborate!</p>
+                 <p class="text-xs text-gray-500 mt-1">Click to copy a shareable link for this group!</p>
             </div>
         </header>
 
@@ -304,10 +308,11 @@
         let membersUnsubscribe = () => {};
         let transactionsUnsubscribe = () => {};
         
-        let groupID = "live-group-1"; // Default group ID
+        let groupID = "default-group"; // Default group ID
 
         // --- UI Elements ---
         const loadingOverlay = document.getElementById('loading-overlay');
+        const connectionStatusEl = document.getElementById('connection-status');
         const memberNameInput = document.getElementById('memberName');
         const addMemberForm = document.getElementById('add-member-form');
         const transMemberSelect = document.getElementById('trans-member');
@@ -320,17 +325,28 @@
 
         // --- Main App Function ---
         async function main() {
-            // Get Group ID from URL
+            // Get Group ID from URL, or generate a new one if none exists
             const urlParams = new URLSearchParams(window.location.search);
-            const urlGroupId = urlParams.get('group');
-            if (urlGroupId) {
-                groupID = urlGroupId;
+            let urlGroupId = urlParams.get('group');
+            if (!urlGroupId) {
+                urlGroupId = `trip-${Math.random().toString(36).substr(2, 6)}`;
+                // This line can cause errors in sandboxed environments like the preview.
+                // It will work correctly on your live GitHub pages site.
+                try {
+                    const newUrl = `${window.location.origin}${window.location.pathname}?group=${urlGroupId}`;
+                    // Only try to push state if it's not a blob URL, to avoid security errors.
+                    if (window.location.protocol !== 'blob:') {
+                        window.history.pushState({ path: newUrl }, '', newUrl);
+                    }
+                } catch (e) {
+                    console.warn("Could not update URL in this environment:", e.message);
+                }
             }
+            groupID = urlGroupId;
             appIdDisplay.textContent = groupID;
 
-
             if (!firebaseConfig || !firebaseConfig.apiKey) {
-                showAlert("Initialization Error", "Firebase is not configured. Please set it up to use the app.");
+                showAlert("Initialization Error", "Firebase is not configured.");
                 loadingOverlay.style.display = 'none';
                 return;
             }
@@ -339,30 +355,24 @@
             db = getFirestore(app);
             auth = getAuth(app);
             
-            // --- Enable Offline Persistence ---
             try {
                 await enableIndexedDbPersistence(db);
                 console.log("Firebase offline persistence enabled.");
             } catch (err) {
                 if (err.code == 'failed-precondition') {
-                    console.warn("Firestore persistence failed: Multiple tabs open, persistence can only be enabled in one tab at a time.");
+                    showAlert("Offline Mode Failed", "Offline mode can only be enabled in one browser tab at a time. Please close other tabs with this app open.");
                 } else if (err.code == 'unimplemented') {
-                    console.warn("Firestore persistence failed: The current browser does not support all of the features required to enable persistence.");
+                    showAlert("Offline Mode Not Supported", "Your browser does not support the features required for offline mode.");
                 }
             }
-            // --- End of Offline Persistence ---
 
             setLogLevel('debug');
-
             copyAppIdBtn.addEventListener('click', copyToClipboard);
 
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     console.log("User is signed in with UID:", user.uid);
                     setupListeners();
-                    loadingOverlay.style.display = 'none';
-                } else {
-                    console.log("User is signed out.");
                 }
             });
 
@@ -370,7 +380,7 @@
                 await signInAnonymously(auth);
             } catch (error) {
                 console.error("Authentication Error:", error);
-                showAlert("Authentication Failed", "Could not sign in. The app may not function correctly.");
+                showAlert("Authentication Failed", "Could not sign in to the database.");
                 loadingOverlay.style.display = 'none';
             }
         }
@@ -383,23 +393,23 @@
             const membersQuery = query(collection(db, membersCollectionPath));
             membersUnsubscribe = onSnapshot(membersQuery, (snapshot) => {
                 members = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log("Updated members:", members);
                 updateUI();
-            }, (error) => {
-                console.error("Error fetching members:", error);
-                showAlert("Database Error", "Failed to load group members.");
             });
 
             const transactionsQuery = query(collection(db, transactionsCollectionPath));
             transactionsUnsubscribe = onSnapshot(transactionsQuery, (snapshot) => {
-                const source = snapshot.metadata.hasPendingWrites ? "Local" : "Server";
-                console.log(`Data came from ${source}`);
+                if (snapshot.metadata.fromCache) {
+                    connectionStatusEl.textContent = 'Offline Mode';
+                    connectionStatusEl.className = 'mt-4 inline-block px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800';
+                } else {
+                    connectionStatusEl.textContent = 'Online';
+                    connectionStatusEl.className = 'mt-4 inline-block px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800';
+                }
                 transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                console.log("Updated transactions:", transactions);
+                if (loadingOverlay.style.display !== 'none') {
+                    loadingOverlay.style.display = 'none'; // Hide loader once data is fetched (from cache or server)
+                }
                 updateUI();
-            }, (error) => {
-                console.error("Error fetching transactions:", error);
-                showAlert("Database Error", "Failed to load transactions.");
             });
         }
         
